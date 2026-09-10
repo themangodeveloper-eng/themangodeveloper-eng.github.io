@@ -2,55 +2,37 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport"
-      content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-
-<title>Lemon_box</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lemon_box V1.1</title>
 
 <style>
 * {
     box-sizing: border-box;
 }
 
-html, body {
+body {
     margin: 0;
-    width: 100%;
-    height: 100%;
-    background: #080b10;
-    color: #e8f0f7;
+    background: #050505;
+    color: #00ff66;
     font-family: monospace;
+    height: 100vh;
     overflow: hidden;
 }
 
-#app {
-    width: 100%;
-    height: 100%;
+#terminal {
+    height: 100vh;
     display: flex;
     flex-direction: column;
 }
 
-#topbar {
-    height: 48px;
-    flex-shrink: 0;
-    background: #111720;
-    border-bottom: 1px solid #26303b;
-    display: flex;
-    align-items: center;
-    padding: 0 14px;
+#header {
+    padding: 12px;
+    background: #101010;
+    border-bottom: 1px solid #00ff66;
+    color: #9cffb8;
 }
 
-.logo {
-    font-size: 18px;
-    font-weight: bold;
-}
-
-.version {
-    margin-left: 10px;
-    color: #8795a5;
-    font-size: 12px;
-}
-
-#terminal {
+#output {
     flex: 1;
     overflow-y: auto;
     padding: 14px;
@@ -58,1383 +40,869 @@ html, body {
     word-break: break-word;
 }
 
-.line {
-    margin-bottom: 5px;
-}
-
-.prompt {
-    color: #70e000;
-}
-
-.error {
-    color: #ff6b6b;
-}
-
-.info {
-    color: #75bfff;
-}
-
-.success {
-    color: #70e000;
-}
-
-.warning {
-    color: #ffd166;
-}
-
-#inputbar {
-    min-height: 52px;
-    flex-shrink: 0;
-    background: #0e131a;
-    border-top: 1px solid #26303b;
+#inputArea {
     display: flex;
-    align-items: center;
-    padding: 7px 12px;
+    padding: 10px;
+    gap: 8px;
+    background: #101010;
+    border-top: 1px solid #00ff66;
 }
 
-#prompt {
-    color: #70e000;
-    white-space: nowrap;
-}
-
-#commandInput {
+#command {
     flex: 1;
-    border: 0;
-    outline: none;
-    background: transparent;
-    color: #ffffff;
+    background: #000;
+    color: #00ff66;
+    border: 1px solid #00ff66;
+    padding: 12px;
     font-family: monospace;
-    font-size: 15px;
-    margin-left: 8px;
+    font-size: 16px;
+    outline: none;
+    border-radius: 6px;
 }
 
 button {
-    background: #18212c;
-    border: 1px solid #303d4b;
-    color: white;
-    border-radius: 7px;
-    padding: 7px 10px;
-    margin-left: 6px;
+    background: #00ff66;
+    color: #000;
+    border: none;
+    padding: 10px 16px;
+    font-family: monospace;
+    font-weight: bold;
+    border-radius: 6px;
 }
 
 button:active {
-    background: #273442;
+    transform: scale(0.95);
+}
+
+#editor {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: #000;
+    z-index: 10;
+    flex-direction: column;
+}
+
+#editorHeader {
+    padding: 10px;
+    border-bottom: 1px solid #00ff66;
+}
+
+#editorText {
+    flex: 1;
+    width: 100%;
+    resize: none;
+    background: #000;
+    color: #00ff66;
+    border: none;
+    outline: none;
+    padding: 14px;
+    font-family: monospace;
+    font-size: 16px;
+}
+
+.editorButtons {
+    padding: 10px;
+    border-top: 1px solid #00ff66;
+    display: flex;
+    gap: 8px;
 }
 </style>
 </head>
 
 <body>
 
-<div id="app">
+<div id="terminal">
 
-    <div id="topbar">
-        <div class="logo">🍋 Lemon_box</div>
-        <div class="version">V1.0</div>
+    <div id="header">
+        🍋 Lemon_box V1.1<br>
+        Browser Linux Emulator
     </div>
 
-    <div id="terminal"></div>
+    <div id="output"></div>
 
-    <div id="inputbar">
-        <div id="prompt">root@lemon:/#</div>
-        <input id="commandInput"
-               autocomplete="off"
-               autocorrect="off"
-               autocapitalize="off"
-               spellcheck="false">
+    <div id="inputArea">
+        <input
+            id="command"
+            type="text"
+            placeholder="Enter command..."
+            autocomplete="off"
+        >
+
+        <button onclick="sendCommand()">Send</button>
         <button onclick="clearTerminal()">Clear</button>
     </div>
 
 </div>
 
+
+<!-- NANO EDITOR -->
+
+<div id="editor">
+
+    <div id="editorHeader">
+        GNU nano — <span id="editorFile"></span>
+    </div>
+
+    <textarea id="editorText"></textarea>
+
+    <div class="editorButtons">
+        <button onclick="saveNano()">Save</button>
+        <button onclick="closeNano()">Exit</button>
+    </div>
+
+</div>
+
+
 <script>
 
-/* =========================================================
-   LEMON_BOX CORE
-   ========================================================= */
+const output = document.getElementById("output");
+const commandInput = document.getElementById("command");
 
-const STORAGE_KEY = "lemon_box_v1";
-
-let system = loadSystem();
-
-let cwd = "/";
-
-const terminal = document.getElementById("terminal");
-const input = document.getElementById("commandInput");
-const promptElement = document.getElementById("prompt");
+let currentDir = "/";
+let nanoFile = null;
 
 
-/* =========================================================
-   DEFAULT SYSTEM
-   ========================================================= */
+/* =========================
+   VIRTUAL FILESYSTEM
+========================= */
 
-function defaultSystem() {
+let filesystem =
+    JSON.parse(localStorage.getItem("lemon_filesystem")) || {
 
-    return {
+    "/": {
+        type: "dir"
+    },
 
-        filesystem: {
-            "/": {
-                type: "dir",
-                children: [
-                    "bin",
-                    "home",
-                    "tmp",
-                    "usr",
-                    "etc",
-                    "var"
-                ]
-            },
+    "/home": {
+        type: "dir"
+    },
 
-            "/bin": {
-                type: "dir",
-                children: [
-                    "ls",
-                    "cd",
-                    "pwd",
-                    "mkdir",
-                    "rm",
-                    "cat",
-                    "echo",
-                    "clear",
-                    "xpkm"
-                ]
-            },
+    "/home/lemon": {
+        type: "dir"
+    },
 
-            "/home": {
-                type: "dir",
-                children: [
-                    "lemon"
-                ]
-            },
-
-            "/home/lemon": {
-                type: "dir",
-                children: []
-            },
-
-            "/tmp": {
-                type: "dir",
-                children: []
-            },
-
-            "/usr": {
-                type: "dir",
-                children: [
-                    "bin",
-                    "lib"
-                ]
-            },
-
-            "/usr/bin": {
-                type: "dir",
-                children: [
-                    "python",
-                    "git",
-                    "java",
-                    "node"
-                ]
-            },
-
-            "/usr/lib": {
-                type: "dir",
-                children: []
-            },
-
-            "/etc": {
-                type: "dir",
-                children: [
-                    "lemon_box.conf"
-                ]
-            },
-
-            "/etc/lemon_box.conf": {
-                type: "file",
-                content:
-`NAME=Lemon_box
-ARCH=arm64
-PACKAGE_MANAGER=xpkm
-PACKAGE_METHOD=git+python
-VERSION=1.0`
-            },
-
-            "/var": {
-                type: "dir",
-                children: [
-                    "lib"
-                ]
-            },
-
-            "/var/lib": {
-                type: "dir",
-                children: [
-                    "xpkm"
-                ]
-            },
-
-            "/var/lib/xpkm": {
-                type: "dir",
-                children: [
-                    "installed.json"
-                ]
-            },
-
-            "/var/lib/xpkm/installed.json": {
-                type: "file",
-                content: JSON.stringify({
-                    python: "preinstalled",
-                    git: "preinstalled",
-                    java: "preinstalled",
-                    node: "preinstalled",
-                    html: "preinstalled",
-                    css: "preinstalled",
-                    javascript: "preinstalled"
-                }, null, 2)
-            }
-        },
-
-        packages: {
-
-            gcc: {
-                name: "gcc",
-                version: "1.0",
-                arch: "arm64",
-                repo:
-                    "https://github.com/lemon-box/packages.git",
-                folder: "gcc",
-                script: "pkg.py"
-            },
-
-            nano: {
-                name: "nano",
-                version: "1.0",
-                arch: "arm64",
-                repo:
-                    "https://github.com/lemon-box/packages.git",
-                folder: "nano",
-                script: "pkg.py"
-            },
-
-            curl: {
-                name: "curl",
-                version: "1.0",
-                arch: "arm64",
-                repo:
-                    "https://github.com/lemon-box/packages.git",
-                folder: "curl",
-                script: "pkg.py"
-            }
-        },
-
-        installed: {
-            python: "preinstalled",
-            git: "preinstalled",
-            java: "preinstalled",
-            node: "preinstalled",
-            html: "preinstalled",
-            css: "preinstalled",
-            javascript: "preinstalled"
-        }
-
-    };
-}
-
-
-/* =========================================================
-   STORAGE
-   ========================================================= */
-
-function loadSystem() {
-
-    try {
-
-        const saved = localStorage.getItem(STORAGE_KEY);
-
-        if (saved) {
-            return JSON.parse(saved);
-        }
-
-    } catch (e) {
-        console.error(e);
+    "/README.txt": {
+        type: "file",
+        content: "Welcome to Lemon_box!"
     }
 
-    const fresh = defaultSystem();
+};
 
+
+function saveFS() {
     localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(fresh)
-    );
-
-    return fresh;
-}
-
-
-function saveSystem() {
-
-    localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(system)
+        "lemon_filesystem",
+        JSON.stringify(filesystem)
     );
 }
 
 
-/* =========================================================
-   TERMINAL
-   ========================================================= */
+/* =========================
+   TERMINAL OUTPUT
+========================= */
 
-function print(text = "", className = "") {
+function print(text = "") {
 
-    const div = document.createElement("div");
+    output.textContent += text + "\n";
 
-    div.className = "line " + className;
-
-    div.textContent = text;
-
-    terminal.appendChild(div);
-
-    terminal.scrollTop = terminal.scrollHeight;
+    output.scrollTop = output.scrollHeight;
 }
 
 
-function printCommand(command) {
+function prompt() {
 
-    print(
-        "root@lemon:" +
-        cwd +
-        "# " +
-        command
-    );
+    return `root@lemon:${currentDir}# `;
+
 }
 
 
-function updatePrompt() {
-
-    promptElement.textContent =
-        "root@lemon:" +
-        cwd +
-        "#";
-}
-
-
-function clearTerminal() {
-
-    terminal.innerHTML = "";
-
-    print("Lemon_box terminal cleared.", "info");
-
-    updatePrompt();
-}
-
-
-/* =========================================================
-   PATH FUNCTIONS
-   ========================================================= */
+/* =========================
+   PATH HANDLING
+========================= */
 
 function normalizePath(path) {
 
-    if (!path) {
-        return cwd;
-    }
+    if (!path || path === ".")
+        return currentDir;
 
-    let result;
+    if (path.startsWith("/"))
+        return cleanPath(path);
 
-    if (path.startsWith("/")) {
-        result = path;
-    } else {
-        result = cwd + "/" + path;
-    }
+    return cleanPath(currentDir + "/" + path);
+}
 
-    const parts = result.split("/");
-    const output = [];
 
-    for (const part of parts) {
+function cleanPath(path) {
 
-        if (!part || part === ".") {
+    let parts = path.split("/");
+    let result = [];
+
+    for (let part of parts) {
+
+        if (!part || part === ".")
             continue;
-        }
 
         if (part === "..") {
 
-            if (output.length) {
-                output.pop();
-            }
+            result.pop();
 
         } else {
-            output.push(part);
-        }
-    }
 
-    return "/" + output.join("/");
-}
-
-
-function parentPath(path) {
-
-    if (path === "/") {
-        return "/";
-    }
-
-    const parts = path.split("/");
-
-    parts.pop();
-
-    const result = parts.join("/");
-
-    return result || "/";
-}
-
-
-function exists(path) {
-
-    return system.filesystem[
-        normalizePath(path)
-    ] !== undefined;
-}
-
-
-/* =========================================================
-   FILESYSTEM
-   ========================================================= */
-
-function createDir(path) {
-
-    path = normalizePath(path);
-
-    if (exists(path)) {
-        return false;
-    }
-
-    const parent = parentPath(path);
-
-    if (!exists(parent)) {
-        return false;
-    }
-
-    const name = path.split("/").pop();
-
-    system.filesystem[path] = {
-        type: "dir",
-        children: []
-    };
-
-    system.filesystem[parent].children.push(name);
-
-    saveSystem();
-
-    return true;
-}
-
-
-function createFile(path, content = "") {
-
-    path = normalizePath(path);
-
-    if (exists(path)) {
-        return false;
-    }
-
-    const parent = parentPath(path);
-
-    if (!exists(parent)) {
-        return false;
-    }
-
-    const name = path.split("/").pop();
-
-    system.filesystem[path] = {
-        type: "file",
-        content: content
-    };
-
-    system.filesystem[parent].children.push(name);
-
-    saveSystem();
-
-    return true;
-}
-
-
-function removePath(path) {
-
-    path = normalizePath(path);
-
-    if (!exists(path) || path === "/") {
-        return false;
-    }
-
-    const node = system.filesystem[path];
-
-    if (node.type === "dir") {
-
-        for (const child of [...node.children]) {
-
-            removePath(
-                path + "/" + child
-            );
+            result.push(part);
 
         }
-    }
-
-    const parent = parentPath(path);
-
-    const name = path.split("/").pop();
-
-    if (system.filesystem[parent]) {
-
-        system.filesystem[parent].children =
-            system.filesystem[parent].children
-            .filter(x => x !== name);
 
     }
 
-    delete system.filesystem[path];
-
-    saveSystem();
-
-    return true;
+    return "/" + result.join("/");
 }
 
 
-/* =========================================================
+/* =========================
    COMMAND PARSER
-   ========================================================= */
+========================= */
 
-function splitCommand(line) {
+function sendCommand() {
 
-    const matches =
-        line.match(/(?:[^\s"]+|"[^"]*")+/g);
+    let input = commandInput.value.trim();
 
-    if (!matches) {
-        return [];
-    }
+    if (!input)
+        return;
 
-    return matches.map(x =>
-        x.startsWith('"') && x.endsWith('"')
-            ? x.slice(1, -1)
-            : x
-    );
-}
+    print(prompt() + input);
 
+    commandInput.value = "";
 
-/* =========================================================
-   HELP
-   ========================================================= */
-
-function showHelp() {
-
-    print(`
-Lemon_box V1
-
-Filesystem:
-  pwd
-  ls
-  cd <directory>
-  mkdir <directory>
-  touch <file>
-  cat <file>
-  rm <file/directory>
-  echo <text>
-  clear
-
-Package manager:
-  xpkm search <name>
-  xpkm info <name>
-  xpkm list
-  xpkm install <name>
-  xpkm remove <name>
-
-Git:
-  git clone <repository>
-
-Pre-installed:
-  python
-  git
-  java
-  node
-  html
-  css
-  javascript
-
-Architecture:
-  arm64
-`);
+    executeCommand(input);
 
 }
 
 
-/* =========================================================
-   LS
-   ========================================================= */
+function executeCommand(input) {
 
-function commandLS(args) {
+    let args = input.match(/(?:[^\s"]+|"[^"]*")+/g) || [];
 
-    const path = args[0]
-        ? normalizePath(args[0])
-        : cwd;
+    let cmd = args.shift();
 
-    if (!exists(path)) {
-        print("ls: no such file or directory", "error");
-        return;
-    }
-
-    const node = system.filesystem[path];
-
-    if (node.type === "file") {
-        print(path.split("/").pop());
-        return;
-    }
-
-    print(node.children.join("  "));
-}
-
-
-/* =========================================================
-   CD
-   ========================================================= */
-
-function commandCD(args) {
-
-    const path = args[0] || "/home/lemon";
-
-    const target = normalizePath(path);
-
-    if (!exists(target)) {
-        print(
-            "cd: no such directory: " + path,
-            "error"
-        );
-        return;
-    }
-
-    if (system.filesystem[target].type !== "dir") {
-        print(
-            "cd: not a directory",
-            "error"
-        );
-        return;
-    }
-
-    cwd = target;
-
-    updatePrompt();
-}
-
-
-/* =========================================================
-   MKDIR
-   ========================================================= */
-
-function commandMkdir(args) {
-
-    if (!args.length) {
-
-        print(
-            "mkdir: missing operand",
-            "error"
-        );
-
-        return;
-    }
-
-    for (const name of args) {
-
-        if (!createDir(name)) {
-
-            print(
-                "mkdir: cannot create " +
-                name,
-                "error"
-            );
-
-        } else {
-
-            print(
-                "created directory " +
-                normalizePath(name),
-                "success"
-            );
-
-        }
-    }
-}
-
-
-/* =========================================================
-   TOUCH
-   ========================================================= */
-
-function commandTouch(args) {
-
-    if (!args.length) {
-
-        print(
-            "touch: missing file",
-            "error"
-        );
-
-        return;
-    }
-
-    for (const name of args) {
-
-        if (!exists(name)) {
-
-            createFile(name);
-
-        }
-    }
-
-    print("done", "success");
-}
-
-
-/* =========================================================
-   CAT
-   ========================================================= */
-
-function commandCat(args) {
-
-    if (!args.length) {
-
-        print(
-            "cat: missing file",
-            "error"
-        );
-
-        return;
-    }
-
-    const path = normalizePath(args[0]);
-
-    if (!exists(path)) {
-
-        print(
-            "cat: file not found",
-            "error"
-        );
-
-        return;
-    }
-
-    const node = system.filesystem[path];
-
-    if (node.type !== "file") {
-
-        print(
-            "cat: is a directory",
-            "error"
-        );
-
-        return;
-    }
-
-    print(node.content);
-}
-
-
-/* =========================================================
-   ECHO
-   ========================================================= */
-
-function commandEcho(args) {
-
-    print(args.join(" "));
-}
-
-
-/* =========================================================
-   RM
-   ========================================================= */
-
-function commandRM(args) {
-
-    if (!args.length) {
-
-        print(
-            "rm: missing operand",
-            "error"
-        );
-
-        return;
-    }
-
-    for (const item of args) {
-
-        if (!removePath(item)) {
-
-            print(
-                "rm: cannot remove " +
-                item,
-                "error"
-            );
-
-        } else {
-
-            print(
-                "removed " +
-                normalizePath(item),
-                "success"
-            );
-
-        }
-    }
-}
-
-
-/* =========================================================
-   GIT
-   ========================================================= */
-
-function commandGit(args) {
-
-    if (!args.length) {
-
-        print(
-            "git: missing command",
-            "error"
-        );
-
-        return;
-    }
-
-    if (args[0] === "clone") {
-
-        if (!args[1]) {
-
-            print(
-                "git clone: repository required",
-                "error"
-            );
-
-            return;
-        }
-
-        const repo = args[1];
-
-        print(
-            "git: cloning " + repo,
-            "info"
-        );
-
-        /*
-         * V1 bootstrap:
-         *
-         * This is where the real browser-compatible
-         * Git implementation will be connected.
-         *
-         * The package manager can then obtain pkg.py
-         * from the repository.
-         */
-
-        print(
-            "git: repository request prepared.",
-            "success"
-        );
-
-        print(
-            "Note: real Git transport will be connected to the WASM Git runtime.",
-            "warning"
-        );
-
-        return;
-    }
-
-    print(
-        "git: unknown command " + args[0],
-        "error"
-    );
-}
-
-
-/* =========================================================
-   XPKM
-   ========================================================= */
-
-function commandXPKM(args) {
-
-    if (!args.length) {
-
-        print(`
-xpkm - Lemon_box package manager
-
-Usage:
-  xpkm search <name>
-  xpkm info <name>
-  xpkm list
-  xpkm install <name>
-  xpkm remove <name>
-`);
-
-        return;
-    }
-
-    const action = args[0];
-
-
-    /* SEARCH */
-
-    if (action === "search") {
-
-        const query =
-            (args[1] || "").toLowerCase();
-
-        let found = false;
-
-        for (const key in system.packages) {
-
-            const pkg = system.packages[key];
-
-            if (
-                pkg.name
-                .toLowerCase()
-                .includes(query)
-            ) {
-
-                print(
-                    pkg.name +
-                    " " +
-                    pkg.version +
-                    " [" +
-                    pkg.arch +
-                    "]"
-                );
-
-                found = true;
-            }
-        }
-
-        if (!found) {
-
-            print(
-                "No packages found.",
-                "warning"
-            );
-
-        }
-
-        return;
-    }
-
-
-    /* INFO */
-
-    if (action === "info") {
-
-        const name = args[1];
-
-        const pkg =
-            system.packages[name];
-
-        if (!pkg) {
-
-            print(
-                "xpkm: package not found: " +
-                name,
-                "error"
-            );
-
-            return;
-        }
-
-        print(`
-Name: ${pkg.name}
-Version: ${pkg.version}
-Architecture: ${pkg.arch}
-Repository: ${pkg.repo}
-Install script: ${pkg.script}
-`);
-
-        return;
-    }
-
-
-    /* LIST */
-
-    if (action === "list") {
-
-        const installed =
-            system.installed;
-
-        for (const name in installed) {
-
-            print(
-                name +
-                "    " +
-                installed[name]
-            );
-
-        }
-
-        return;
-    }
-
-
-    /* INSTALL */
-
-    if (action === "install") {
-
-        const name = args[1];
-
-        if (!name) {
-
-            print(
-                "xpkm install: package required",
-                "error"
-            );
-
-            return;
-        }
-
-        installPackage(name);
-
-        return;
-    }
-
-
-    /* REMOVE */
-
-    if (action === "remove") {
-
-        const name = args[1];
-
-        if (!name) {
-
-            print(
-                "xpkm remove: package required",
-                "error"
-            );
-
-            return;
-        }
-
-        if (!system.installed[name]) {
-
-            print(
-                "xpkm: package is not installed",
-                "error"
-            );
-
-            return;
-        }
-
-        if (
-            system.installed[name] ===
-            "preinstalled"
-        ) {
-
-            print(
-                "xpkm: cannot remove pre-installed package",
-                "error"
-            );
-
-            return;
-        }
-
-        delete system.installed[name];
-
-        saveSystem();
-
-        print(
-            "Package " +
-            name +
-            " removed.",
-            "success"
-        );
-
-        return;
-    }
-
-
-    print(
-        "xpkm: unknown command: " +
-        action,
-        "error"
-    );
-}
-
-
-/* =========================================================
-   PACKAGE INSTALLER
-   ========================================================= */
-
-async function installPackage(name) {
-
-    const pkg =
-        system.packages[name];
-
-    if (!pkg) {
-
-        print(
-            "xpkm: package not found: " +
-            name,
-            "error"
-        );
-
-        return;
-    }
-
-    if (system.installed[name]) {
-
-        print(
-            name +
-            " is already installed.",
-            "warning"
-        );
-
-        return;
-    }
-
-
-    print(
-        "[1/5] Preparing Git repository...",
-        "info"
+    args = args.map(x =>
+        x.replace(/^"(.*)"$/, "$1")
     );
 
-    await sleep(300);
 
-
-    print(
-        "git clone " +
-        pkg.repo,
-        "info"
-    );
-
-    await sleep(400);
-
-
-    print(
-        "[2/5] Looking for " +
-        pkg.folder +
-        "/" +
-        pkg.script,
-        "info"
-    );
-
-    await sleep(300);
-
-
-    print(
-        "[3/5] Running Python package installer...",
-        "info"
-    );
-
-    await sleep(400);
-
-
-    print(
-        "python " +
-        pkg.script,
-        "info"
-    );
-
-    await sleep(400);
-
-
-    print(
-        "[4/5] Installing package files...",
-        "info"
-    );
-
-    await sleep(300);
-
-
-    /*
-     * The real package payload will be installed
-     * here once the Git + Python WASM runtimes
-     * are connected.
-     */
-
-    system.installed[name] =
-        pkg.version;
-
-    saveSystem();
-
-
-    print(
-        "[5/5] Package registered.",
-        "success"
-    );
-
-    print(
-        name +
-        " installed successfully.",
-        "success"
-    );
-
-}
-
-
-/* =========================================================
-   COMMAND EXECUTION
-   ========================================================= */
-
-async function execute(commandLine) {
-
-    const args =
-        splitCommand(commandLine);
-
-    if (!args.length) {
-        return;
-    }
-
-    const command = args[0];
-
-    switch (command) {
+    switch(cmd) {
 
         case "help":
-            showHelp();
+            help();
             break;
 
         case "pwd":
-            print(cwd);
+            print(currentDir);
             break;
 
         case "ls":
-            commandLS(args.slice(1));
+            ls(args);
             break;
 
         case "cd":
-            commandCD(args.slice(1));
+            cd(args);
             break;
 
         case "mkdir":
-            commandMkdir(args.slice(1));
+            mkdir(args);
             break;
 
         case "touch":
-            commandTouch(args.slice(1));
+            touch(args);
             break;
 
         case "cat":
-            commandCat(args.slice(1));
+            cat(args);
             break;
 
         case "echo":
-            commandEcho(args.slice(1));
+            echo(args);
             break;
 
         case "rm":
-            commandRM(args.slice(1));
+            rm(args);
             break;
 
         case "clear":
             clearTerminal();
             break;
 
-        case "git":
-            commandGit(args.slice(1));
-            break;
-
-        case "xpkm":
-            commandXPKM(args.slice(1));
+        case "nano":
+            nano(args);
             break;
 
         case "python":
+        case "python3":
+            python(args);
+            break;
+
+        case "git":
+            git(args);
+            break;
+
+        case "whoami":
+            print("root");
+            break;
+
+        case "uname":
+            print("Lemon_box ARM64");
+            break;
+
+        case "neofetch":
+            neofetch();
+            break;
+
+        case "exit":
+            print("logout");
+            break;
+
+        default:
+            print(`${cmd}: command not found`);
+
+    }
+
+}
+
+
+/* =========================
+   HELP
+========================= */
+
+function help() {
+
+print(`
+Lemon_box commands:
+
+File commands:
+  ls
+  cd <dir>
+  pwd
+  mkdir <dir>
+  touch <file>
+  cat <file>
+  echo <text>
+  rm <file>
+
+Editors:
+  nano <file>
+
+Programming:
+  python
+  python3
+
+Git:
+  git init
+  git status
+  git add
+  git commit
+
+System:
+  whoami
+  uname
+  neofetch
+  clear
+  help
+`);
+
+}
+
+
+/* =========================
+   LS
+========================= */
+
+function ls(args) {
+
+    let path = normalizePath(args[0] || ".");
+
+    let prefix = path === "/" ? "/" : path + "/";
+
+    let names = [];
+
+    for (let key in filesystem) {
+
+        if (key.startsWith(prefix)) {
+
+            let rest = key.slice(prefix.length);
+
+            if (rest && !rest.includes("/"))
+                names.push(rest);
+
+        }
+
+    }
+
+    print(names.join("  "));
+
+}
+
+
+/* =========================
+   CD
+========================= */
+
+function cd(args) {
+
+    let path = normalizePath(args[0] || "/");
+
+    if (
+        filesystem[path] &&
+        filesystem[path].type === "dir"
+    ) {
+
+        currentDir = path;
+
+    } else {
+
+        print(`cd: ${args[0]}: No such directory`);
+
+    }
+
+}
+
+
+/* =========================
+   MKDIR
+========================= */
+
+function mkdir(args) {
+
+    if (!args.length) {
+
+        print("mkdir: missing operand");
+        return;
+
+    }
+
+    let path = normalizePath(args[0]);
+
+    if (filesystem[path]) {
+
+        print("mkdir: already exists");
+        return;
+
+    }
+
+    filesystem[path] = {
+        type: "dir"
+    };
+
+    saveFS();
+
+}
+
+
+/* =========================
+   TOUCH
+========================= */
+
+function touch(args) {
+
+    if (!args.length) {
+
+        print("touch: missing file");
+        return;
+
+    }
+
+    let path = normalizePath(args[0]);
+
+    if (!filesystem[path]) {
+
+        filesystem[path] = {
+            type: "file",
+            content: ""
+        };
+
+    }
+
+    saveFS();
+
+}
+
+
+/* =========================
+   CAT
+========================= */
+
+function cat(args) {
+
+    if (!args.length) {
+
+        print("cat: missing file");
+        return;
+
+    }
+
+    let path = normalizePath(args[0]);
+
+    if (
+        filesystem[path] &&
+        filesystem[path].type === "file"
+    ) {
+
+        print(filesystem[path].content);
+
+    } else {
+
+        print(`cat: ${args[0]}: No such file`);
+
+    }
+
+}
+
+
+/* =========================
+   ECHO
+========================= */
+
+function echo(args) {
+
+    print(args.join(" "));
+
+}
+
+
+/* =========================
+   RM
+========================= */
+
+function rm(args) {
+
+    if (!args.length) {
+
+        print("rm: missing operand");
+        return;
+
+    }
+
+    let path = normalizePath(args[0]);
+
+    if (filesystem[path]) {
+
+        delete filesystem[path];
+
+        saveFS();
+
+    } else {
+
+        print(`rm: cannot remove '${args[0]}'`);
+
+    }
+
+}
+
+
+/* =========================
+   NANO
+========================= */
+
+function nano(args) {
+
+    if (!args.length) {
+
+        print("nano: missing filename");
+        return;
+
+    }
+
+    let path = normalizePath(args[0]);
+
+    if (!filesystem[path]) {
+
+        filesystem[path] = {
+            type: "file",
+            content: ""
+        };
+
+    }
+
+    nanoFile = path;
+
+    document.getElementById("editorFile")
+        .textContent = path;
+
+    document.getElementById("editorText")
+        .value = filesystem[path].content;
+
+    document.getElementById("editor")
+        .style.display = "flex";
+
+}
+
+
+function saveNano() {
+
+    filesystem[nanoFile].content =
+        document.getElementById("editorText").value;
+
+    saveFS();
+
+    closeNano();
+
+    print(`[ nano ] saved ${nanoFile}`);
+
+}
+
+
+function closeNano() {
+
+    document.getElementById("editor")
+        .style.display = "none";
+
+    nanoFile = null;
+
+}
+
+
+/* =========================
+   SIMPLE PYTHON
+========================= */
+
+function python(args) {
+
+    if (!args.length) {
+
+        print("Python 3.x — Lemon_box Python runtime");
+        print("Type Python code using:");
+        print('python -c "print(hello)"');
+        return;
+
+    }
+
+    if (args[0] === "-c") {
+
+        let code = args.slice(1).join(" ");
+
+        pythonExecute(code);
+
+        return;
+
+    }
+
+    let path = normalizePath(args[0]);
+
+    if (!filesystem[path]) {
+
+        print(`python: can't open file '${args[0]}'`);
+        return;
+
+    }
+
+    let code = filesystem[path].content;
+
+    pythonExecute(code);
+
+}
+
+
+function pythonExecute(code) {
+
+    let lines = code.split("\n");
+
+    for (let line of lines) {
+
+        line = line.trim();
+
+        let match =
+            line.match(/^print\s*\(\s*["'](.*?)["']\s*\)$/);
+
+        if (match) {
+
+            print(match[1]);
+
+            continue;
+
+        }
+
+        let math =
+            line.match(/^print\s*\(\s*([0-9+\-*\/(). ]+)\s*\)$/);
+
+        if (math) {
+
+            try {
+
+                print(String(
+                    Function(
+                        `"use strict";return (${math[1]})`
+                    )()
+                ));
+
+            } catch {
+
+                print("Python: calculation error");
+
+            }
+
+            continue;
+
+        }
+
+        if (line)
+            print(`Python: executed: ${line}`);
+
+    }
+
+}
+
+
+/* =========================
+   GIT
+========================= */
+
+function git(args) {
+
+    if (!args.length) {
+
+        print("usage: git <command>");
+        return;
+
+    }
+
+    let sub = args[0];
+
+    switch(sub) {
+
+        case "init":
+
+            if (!filesystem[currentDir + "/.git"]) {
+
+                filesystem[currentDir + "/.git"] = {
+                    type: "dir"
+                };
+
+                saveFS();
+
+            }
 
             print(
-                "Python runtime is reserved for the real WASM Python runtime.",
-                "warning"
+                `Initialized empty Git repository in ${currentDir}/.git/`
             );
 
             break;
 
-        case "java":
+
+        case "status":
+
+            if (
+                filesystem[currentDir + "/.git"]
+            ) {
+
+                print("On branch main");
+                print("No commits yet.");
+
+            } else {
+
+                print(
+                    "fatal: not a git repository"
+                );
+
+            }
+
+            break;
+
+
+        case "add":
 
             print(
-                "Java runtime is reserved for the Lemon_box JVM runtime.",
-                "warning"
+                "Files added to staging area."
             );
 
             break;
 
-        case "html":
-        case "css":
-        case "javascript":
-        case "node":
+
+        case "commit":
 
             print(
-                command +
-                ": runtime/toolchain will be connected in the next stage.",
-                "warning"
+                "[main (root-commit)] Lemon_box commit"
             );
 
             break;
+
+
+        case "--version":
+
+            print("git version 2.x");
+
+            break;
+
 
         default:
 
             print(
-                command +
-                ": command not found",
-                "error"
+                `git: '${sub}' is not implemented in Lemon_box`
             );
+
     }
 
 }
 
 
-/* =========================================================
-   INPUT
-   ========================================================= */
+/* =========================
+   NEOFETCH
+========================= */
 
-input.addEventListener(
-    "keydown",
-    async function(event) {
+function neofetch() {
 
-        if (event.key !== "Enter") {
-            return;
-        }
+print(`
+        🍋🍋🍋
+       🍋    🍋
+      🍋 Lemon 🍋
+       🍋_box 🍋
 
-        const command =
-            input.value.trim();
-
-        input.value = "";
-
-        if (!command) {
-            return;
-        }
-
-        printCommand(command);
-
-        await execute(command);
-
-    }
-);
-
-
-/* =========================================================
-   UTILITY
-   ========================================================= */
-
-function sleep(ms) {
-
-    return new Promise(
-        resolve => setTimeout(resolve, ms)
-    );
-
-}
-
-
-/* =========================================================
-   BOOT
-   ========================================================= */
-
-print(
-`Lemon_box V1.0
-ARM64 virtual Linux environment
+OS: Lemon_box
+Kernel: BrowserKernel
+Architecture: ARM64
+Shell: lemon-shell
+Filesystem: VirtualFS
 Package manager: xpkm
-Package method: Git + Python
+Runtime: JavaScript
+`);
 
-Type "help" for commands.
-`,
-"info"
+}
+
+
+/* =========================
+   CLEAR
+========================= */
+
+function clearTerminal() {
+
+    output.textContent = "";
+
+}
+
+
+/* =========================
+   ENTER KEY
+========================= */
+
+commandInput.addEventListener(
+    "keydown",
+    function(event) {
+
+        if (event.key === "Enter") {
+
+            sendCommand();
+
+        }
+
+    }
 );
 
-updatePrompt();
 
-input.focus();
+/* =========================
+   STARTUP
+========================= */
 
-document.addEventListener(
-    "click",
-    () => input.focus()
-);
+print("🍋 Lemon_box V1.1");
+print("Type 'help' for commands.");
+print("");
 
 </script>
 
